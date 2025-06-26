@@ -18,7 +18,3 @@ Pour utiliser l'application, il faut :
 8) Dans le second Shell, entrer la commande : php bin/server.php
 
 10) Ouvrir deux navigateur différents (ou navigation privée) et taper localhost/### en remplaçant ### par le nom du dossier de l'application.
-
-
-Quand tu change ton mot de passe il faut qu'il soit hacher
-Nom utilisateur unique(inscription et changement)
