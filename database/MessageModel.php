@@ -170,14 +170,12 @@ class MessageModel
 
 	function get_all_chat_data()
 	{
-		// MODIFICATION : Afficher les annotations de l'expéditeur (persistance après refresh)
+		// MODIFICATION : Requête simplifiée sans récupérer les annotations pour affichage
 		$query = "SELECT a.username as from_username, b.username as to_username, 
-						 m.message_id, m.content, m.timestamp, m.to_user_id, m.from_user_id,
-						 an_sender.emotion as sender_annotation
+						 m.message_id, m.content, m.timestamp, m.to_user_id, m.from_user_id
 				  FROM Message m
 				  INNER JOIN User a ON m.from_user_id = a.user_id
 				  INNER JOIN User b ON m.to_user_id = b.user_id
-				  LEFT JOIN Annotation an_sender ON (m.message_id = an_sender.message_id AND an_sender.annotator_id = m.from_user_id)
 				  WHERE (m.from_user_id = :from_user_id AND m.to_user_id = :to_user_id)
 					 OR (m.from_user_id = :to_user_id AND m.to_user_id = :from_user_id)
 				  ORDER BY m.timestamp ASC";

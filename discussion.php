@@ -19,7 +19,7 @@ $user_data = $user_object->get_user_all_data();
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Discussions - Poppins</title>
+    <title>Discussions</title>
     <link rel="icon" type="image/x-icon" href="img/bubble-chat.png">
     <link rel="stylesheet" href="style_discussion.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
@@ -205,7 +205,7 @@ $(document).ready(function(){
                     : 'vendor-front/sounds/mixkit-arabian-mystery-harp-notification-2489.wav';
 
                 let myAudio = new Audio(myNotificationAudioPath);
-                // myAudio.play(); 
+                //myAudio.play(); 
             
                 if (receiver_userid == data.userId || data.from == 'Me') {
                     if ($('#is_active_chat').val() == 'Yes') {
@@ -229,7 +229,7 @@ $(document).ready(function(){
         console.log('Connection Closed!');
     };
 
-    // Fonction pour afficher un message dans le chat
+    // MODIFICATION : Afficher message sans annotation visible
     function displayMessage(data) {
         const isSender = data.from == 'Me';
         const alignmentStyle = isSender 
@@ -239,14 +239,11 @@ $(document).ready(function(){
             ? 'max-width: 70%; padding: 10px; border-radius: 15px; background-color: #d1e7dd; color: #0f5132; text-align: right; word-wrap: break-word; word-break: break-word; box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);'
             : 'max-width: 70%; padding: 10px; border-radius: 15px; background-color: #f8d7da; color: #842029; text-align: left; word-wrap: break-word; word-break: break-word; box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);';
 
-        // SELON CONSIGNES : Afficher seulement l'annotation de l'expéditeur, PAS du destinataire
-        const senderEmotion = data.emotion ? getEmotionEmoji(data.emotion) : '';
-
+        // MODIFICATION : Supprimer l'affichage des annotations
         const html_data = `
         <div style="${alignmentStyle}">
             <div style="${bubbleStyle}" data-message-id="${data.message_id || ''}" data-from="${data.from}" data-sender-id="${data.userId || ''}">
                 <b>${isSender ? 'Vous' : data.from} :</b> ${data.msg}<br />
-                ${senderEmotion ? `<span style="font-size: 12px;">Annotation: ${senderEmotion}</span><br />` : ''}
                 <div style="text-align: right; font-size: 12px; color: #555;">
                     <i>${data.datetime}</i>
                 </div>
@@ -377,7 +374,8 @@ $(document).ready(function(){
                 <div style="background-color: #f7f7f7; border-bottom: 1px solid #e0e0e0; padding: 10px 15px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
-                            <b style="font-size: 16px;">Discussion avec : <span style="color:rgb(17, 143, 221);">${username}</span></b>
+                            <b style="font-size: 16px;">Discussion avec : <span style="color: #dc3545;">${username}</span></b>
+                            <br><small style="color: #666;">Jeu de rôle : Chacun son tour !</small>
                         </div>
                         <div>
                             <button type="button" id="close_chat_area" style="font-size: 1.5rem; color: #999; cursor: pointer; background: none; border: none;">
@@ -393,7 +391,7 @@ $(document).ready(function(){
 
             <form id="chat_form" method="POST" style="display: flex; align-items: center; margin-top: 10px;">
                 <select id="emotion" name="annotation" style="border-radius: 20px; padding: 10px; font-size: 14px; margin-right: 10px; height: 50px;" required>
-                    <option value="" disabled selected>Annotation</option>
+                    <option value="" disabled selected>Votre annotation</option>
                     <option value="joie">😄 Joie</option>
                     <option value="colère">😡 Colère</option>
                     <option value="dégoût">🤮 Dégoût</option>
@@ -406,6 +404,9 @@ $(document).ready(function(){
                     ➤
                 </button>
             </form>
+            <div style="text-align: center; margin-top: 5px;">
+                <small style="color: #666;">Instructions : Choisissez votre annotation → Écrivez votre message → Envoyez</small>
+            </div>
         `;
 
         $('#chat_area').html(html); 
@@ -449,15 +450,13 @@ $(document).ready(function(){
                         ? 'max-width: 70%; padding: 10px; border-radius: 15px; background-color: #d1e7dd; color: #0f5132; text-align: right; word-wrap: break-word; word-break: break-word; box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);'
                         : 'max-width: 70%; padding: 10px; border-radius: 15px; background-color: #f8d7da; color: #842029; text-align: left; word-wrap: break-word; word-break: break-word; box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);';
 
-                        // MODIFICATION : Afficher les annotations persistantes (même après refresh)
+                        // MODIFICATION : Afficher historique sans annotations visibles
                         const username = isSender ? 'Vous' : data[count].from_username;
-                        const senderAnnotation = data[count].sender_annotation ? getEmotionEmoji(data[count].sender_annotation) : '';
 
                         html_data += `
                             <div style="${alignmentStyle}">
                                 <div style="${bubbleStyle}" data-message-id="${data[count].message_id}" data-from="${username}" data-sender-id="${data[count].from_user_id}">
                                     <b>${username} :</b> ${data[count].content}<br />
-                                    ${senderAnnotation ? `<span style="font-size: 12px;">Annotation: ${senderAnnotation}</span><br />` : ''}
                                     <div style="text-align: right; font-size: 12px; color: #555;">
                                         <i>${data[count].timestamp}</i>
                                     </div>

@@ -25,60 +25,51 @@ $message = '';
 
 if (isset($_POST['edit']))
 {
-    // MODIFICATION : Validation et gestion des erreurs
-    if (empty($_POST['username']) || empty($_POST['password_hash'])) {
-        $message = '<div class="alert alert-danger" style="color: #dc3545;">Veuillez remplir tous les champs.</div>';
-    } elseif (strlen($_POST['password_hash']) < 6) {
-        $message = '<div class="alert alert-danger" style="color: #dc3545;">Le mot de passe doit contenir au moins 6 caractères.</div>';
-    } elseif ($_POST['username'] !== $user_data['username'] && $user_object->username_exists($_POST['username'])) {
-        // MODIFICATION : Vérifier l'unicité du nom d'utilisateur seulement s'il a changé
-        $message = '<div class="alert alert-danger" style="color: #dc3545;">Ce nom d\'utilisateur est déjà pris. Veuillez en choisir un autre.</div>';
-    } else {
-        // MODIFICATION : Vérifier si le mot de passe actuel est correct avant de le changer
-        if ($_POST['password_hash'] !== $user_data['password_hash']) {
-            // L'utilisateur veut changer son mot de passe (le champ contient un nouveau mot de passe)
-            $user_object->setPasswordHash($_POST['password_hash']);
-            $password_changed = true;
+    // MODIFICATION : Permettre modification séparée du nom et/ou mot de passe
+    $errors = [];
+    $success_messages = [];
+
+    // Validation du nom d'utilisateur si changé
+    if (!empty($_POST['username']) && $_POST['username'] !== $user_data['username']) {
+        if (strlen($_POST['username']) < 3) {
+            $errors[] = 'Le nom d\'utilisateur doit contenir au moins 3 caractères.';
+        } elseif ($user_object->username_exists($_POST['username'])) {
+            $errors[] = 'Ce nom d\'utilisateur est déjà pris. Veuillez en choisir un autre.';
         } else {
-            // Le mot de passe n'a pas changé, ne pas le re-hacher
-            $password_changed = false;
-        }
-
-        $user_object->setUsername($_POST['username']);
-        $user_object->setEmail($_POST['email']);
-        $user_object->setUserId($login_user_id);
-
-        // MODIFICATION : Utiliser les nouvelles méthodes spécialisées
-        $success = false;
-        
-        if ($_POST['username'] !== $user_data['username']) {
             // Changer le nom d'utilisateur
             $user_object->setUsername($_POST['username']);
             if ($user_object->update_username()) {
-                // Mettre à jour la session
                 $_SESSION['user_data'][$login_user_id]['name'] = $_POST['username'];
                 $user_data['username'] = $_POST['username'];
-                $success = true;
+                $success_messages[] = 'Nom d\'utilisateur modifié avec succès.';
+            } else {
+                $errors[] = 'Erreur lors de la modification du nom d\'utilisateur.';
             }
         }
-        
-        if ($password_changed) {
-            // Changer le mot de passe
-            if ($user_object->update_password()) {
-                $success = true;
-            }
-        }
-        
-        // Si aucun changement n'a été fait mais pas d'erreur
-        if (!$password_changed && $_POST['username'] === $user_data['username']) {
-            $success = true;
-        }
+    }
 
-        if ($success) {
-            $message = '<div class="alert alert-success" style="color: #00ab0a;">Les détails du profil ont été modifiés avec succès.</div>';
+    // Validation du mot de passe si changé
+    if (!empty($_POST['password_hash'])) {
+        if (strlen($_POST['password_hash']) < 6) {
+            $errors[] = 'Le mot de passe doit contenir au moins 6 caractères.';
         } else {
-            $message = '<div class="alert alert-danger" style="color: #dc3545;">Erreur lors de la modification du profil.</div>';
+            // Changer le mot de passe
+            $user_object->setPasswordHash($_POST['password_hash']);
+            if ($user_object->update_password()) {
+                $success_messages[] = 'Mot de passe modifié avec succès.';
+            } else {
+                $errors[] = 'Erreur lors de la modification du mot de passe.';
+            }
         }
+    }
+
+    // Affichage des messages
+    if (!empty($errors)) {
+        $message = '<div class="alert alert-danger" style="color: #dc3545;">' . implode('<br>', $errors) . '</div>';
+    } elseif (!empty($success_messages)) {
+        $message = '<div class="alert alert-success" style="color: #00ab0a;">' . implode('<br>', $success_messages) . '</div>';
+    } elseif (empty($_POST['username']) && empty($_POST['password_hash'])) {
+        $message = '<div class="alert alert-warning" style="color: #856404;">Aucune modification détectée.</div>';
     }
 }
 ?>
@@ -126,18 +117,19 @@ if (isset($_POST['edit']))
                     <br/>
                     <form method="POST" id="profile_form" enctype="multipart/form-data">
                         <div class="form-group">
-                            <label for="name">Nom d'utilisateur</label>
-                            <input type="text" name="username" id="username" class="form-control" data-parsley-pattern="/^[a-zA-Z0-9_\s]+$/" data-parsley-minlength="3" required value="<?php echo htmlspecialchars($user_data['username']); ?>" />
-                            <small style="color: #666; font-size: 12px;">Le nom d'utilisateur doit être unique sur l'application</small>
+                            <label for="name">Nom d'utilisateur (unique)</label>
+                            <input type="text" name="username" id="username" class="form-control" data-parsley-pattern="/^[a-zA-Z0-9_\s]+$/" data-parsley-minlength="3" value="<?php echo htmlspecialchars($user_data['username']); ?>" />
+                            <small style="color: #666; font-size: 12px;">Modifiez seulement si vous voulez changer le nom (doit rester unique)</small>
                         </div>
                         <div class="form-group">
                             <label for="mail">Adresse Mail</label>
-                            <input type="email" name="email" id="email" class="form-control" data-parsley-type="email" required readonly value="<?php echo htmlspecialchars($user_data['email']); ?>" />
+                            <input type="email" name="email" id="email" class="form-control" data-parsley-type="email" readonly value="<?php echo htmlspecialchars($user_data['email']); ?>" />
                             <small style="color: #666; font-size: 12px;">L'email ne peut pas être modifié</small>
                         </div>
                         <div class="form-group">
                             <label>Nouveau mot de passe</label>
-                            <input type="password" name="password_hash" id="password_hash" class="form-control" data-parsley-minlength="6" data-parsley-maxlength="50" placeholder="Saisissez un nouveau mot de passe (minimum 6 caractères)" required />
+                            <input type="password" name="password_hash" id="password_hash" class="form-control" data-parsley-minlength="6" data-parsley-maxlength="50" placeholder="Saisissez un nouveau mot de passe (optionnel)" />
+                            <small style="color: #666; font-size: 12px;">Laissez vide si vous ne voulez pas changer le mot de passe</small>
                         </div>
                         <div class="form-actions">
                             <button style="background-color: #007bff; color: white" type="submit" name="edit" id="save" class="btn btn-succes">Sauvegarder</button>
@@ -153,20 +145,30 @@ if (isset($_POST['edit']))
 
             var conn = new WebSocket('ws://localhost:8080?token=<?php echo $token; ?>');
 
-            // MODIFICATION : Validation côté client améliorée
+            // MODIFICATION : Validation optionnelle (plus de champs requis)
             $('#profile_form').submit(function(e) {
                 var username = $('#username').val().trim();
                 var password = $('#password_hash').val();
+                var originalUsername = '<?php echo htmlspecialchars($user_data['username']); ?>';
 
-                if (username.length < 3) {
+                // Vérifier le nom d'utilisateur seulement s'il a changé
+                if (username !== originalUsername && username.length > 0 && username.length < 3) {
                     e.preventDefault();
                     alert('Le nom d\'utilisateur doit contenir au moins 3 caractères.');
                     return false;
                 }
 
+                // Vérifier le mot de passe seulement s'il est saisi
                 if (password.length > 0 && password.length < 6) {
                     e.preventDefault();
                     alert('Le mot de passe doit contenir au moins 6 caractères.');
+                    return false;
+                }
+
+                // Vérifier qu'au moins un champ a été modifié
+                if (username === originalUsername && password.length === 0) {
+                    e.preventDefault();
+                    alert('Veuillez modifier au moins un champ (nom d\'utilisateur ou mot de passe).');
                     return false;
                 }
 
