@@ -2,74 +2,49 @@
 
 class MessageModel
 {
+	// Attributs privés représentant les données d'un message
 	private $message_id;
 	private $to_user_id;
 	private $from_user_id;
 	private $content;
 	private $timestamp;
 	private $emotion;
+
+	// Connexion à la base de données
 	protected $connect;
 
 	public function __construct()
 	{
+		// Inclut la classe de connexion à la base
 		require_once('Database_connection.php');
 		$db = new Database_connection();
 		$this->connect = $db->connect();
 	}
 
-	// Getters et setters
-	function setEmotion($emotion) { 
-		$this->emotion = $emotion; 
-	}
+	// --- GETTERS ET SETTERS POUR CHAQUE ATTRIBUT ---
 
-	function getEmotion() { 
-		return $this->emotion; 
-	}
+	function setEmotion($emotion) { $this->emotion = $emotion; }
+	function getEmotion() { return $this->emotion; }
 
-	function getMessageId() { 
-		return $this->message_id; 
-	}
+	function getMessageId() { return $this->message_id; }
+	function setMessageId($message_id) { $this->message_id = $message_id; }
 
-	function setMessageId($message_id) { 
-		$this->message_id = $message_id; 
-	}
+	function setToUserId($to_user_id) { $this->to_user_id = $to_user_id; }
+	function getToUserId() { return $this->to_user_id; }
 
-	function setToUserId($to_user_id) { 
-		$this->to_user_id = $to_user_id; 
-	}
+	function setFromUserId($from_user_id) { $this->from_user_id = $from_user_id; }
+	function getFromUserId() { return $this->from_user_id; }
 
-	function getToUserId() { 
-		return $this->to_user_id; 
-	}
+	function setChatMessage($chat_message) { $this->content = $chat_message; }
+	function getChatMessage() { return $this->content; }
 
-	function setFromUserId($from_user_id) { 
-		$this->from_user_id = $from_user_id; 
-	}
+	function setTimestamp($timestamp) { $this->timestamp = $timestamp; }
+	function getTimestamp() { return $this->timestamp; }
 
-	function getFromUserId() { 
-		return $this->from_user_id; 
-	}
-
-	function setChatMessage($chat_message) { 
-		$this->content = $chat_message; 
-	}
-
-	function getChatMessage() { 
-		return $this->content; 
-	}
-
-	function setTimestamp($timestamp) { 
-		$this->timestamp = $timestamp; 
-	}
-
-	function getTimestamp() { 
-		return $this->timestamp; 
-	}
-
-	// LOGIQUE CORRIGÉE - JEU DE RÔLE STRICT
+	// --- LOGIQUE DE CONTRÔLE : Peut-on envoyer un message ? ---
 	function can_user_send_message()
 	{
-		// Récupérer le dernier message de la conversation
+		// Récupère le dernier message échangé entre les deux utilisateurs
 		$query = "SELECT m.message_id, m.from_user_id, m.to_user_id 
 				  FROM Message m
 				  WHERE (m.from_user_id = :from_user_id AND m.to_user_id = :to_user_id)
@@ -85,11 +60,11 @@ class MessageModel
 		$last_message = $stmt->fetch(PDO::FETCH_ASSOC);
 
 		if (!$last_message) {
-			// Aucun message précédent = PREMIER MESSAGE = OK
+			// Aucun message : autorisé à envoyer
 			return ['can_send' => true, 'reason' => ''];
 		}
 
-		// RÈGLE 1 : Si j'ai envoyé le dernier message, je ne peux PAS renvoyer
+		// Si le dernier message vient de l'utilisateur actuel : il doit attendre
 		if ($last_message['from_user_id'] == $this->from_user_id) {
 			return [
 				'can_send' => false, 
@@ -97,36 +72,32 @@ class MessageModel
 			];
 		}
 
-		// RÈGLE 2 : Si l'autre a envoyé le dernier message, je DOIS l'annoter avant d'envoyer
-		if ($last_message['from_user_id'] != $this->from_user_id) {
-			// Vérifier si j'ai annoté ce message
-			$annotation_query = "SELECT COUNT(*) as count 
-								 FROM Annotation 
-								 WHERE message_id = :message_id 
-								   AND annotator_id = :annotator_id";
-			
-			$annotation_stmt = $this->connect->prepare($annotation_query);
-			$annotation_stmt->bindParam(':message_id', $last_message['message_id']);
-			$annotation_stmt->bindParam(':annotator_id', $this->from_user_id);
-			$annotation_stmt->execute();
-			$annotation_result = $annotation_stmt->fetch(PDO::FETCH_ASSOC);
+		// Sinon, vérifier s'il a annoté le dernier message reçu
+		$annotation_query = "SELECT COUNT(*) as count 
+							 FROM Annotation 
+							 WHERE message_id = :message_id 
+							   AND annotator_id = :annotator_id";
 
-			if ($annotation_result['count'] == 0) {
-				return [
-					'can_send' => false, 
-					'reason' => 'Vous devez d\'abord annoter le message reçu avant de pouvoir envoyer votre réponse.',
-					'message_to_annotate' => $last_message['message_id']
-				];
-			}
+		$annotation_stmt = $this->connect->prepare($annotation_query);
+		$annotation_stmt->bindParam(':message_id', $last_message['message_id']);
+		$annotation_stmt->bindParam(':annotator_id', $this->from_user_id);
+		$annotation_stmt->execute();
+		$annotation_result = $annotation_stmt->fetch(PDO::FETCH_ASSOC);
 
-			// Si j'ai annoté le message reçu = OK, c'est mon tour
-			return ['can_send' => true, 'reason' => ''];
+		if ($annotation_result['count'] == 0) {
+			// Doit d'abord annoter
+			return [
+				'can_send' => false, 
+				'reason' => 'Vous devez d\'abord annoter le message reçu avant de pouvoir envoyer votre réponse.',
+				'message_to_annotate' => $last_message['message_id']
+			];
 		}
 
-		return ['can_send' => false, 'reason' => 'Erreur de logique'];
+		// Sinon, autorisé à envoyer
+		return ['can_send' => true, 'reason' => ''];
 	}
 
-	// Annoter un message reçu
+	// --- Annoter un message reçu ---
 	function annotate_received_message($message_id, $emotion)
 	{
 		try {
@@ -150,7 +121,7 @@ class MessageModel
 		}
 	}
 
-	// Récupérer les messages non annotés reçus par l'utilisateur
+	// --- Récupérer les messages reçus non encore annotés par l'utilisateur ---
 	function get_unannotated_received_messages()
 	{
 		$query = "SELECT m.message_id, m.content, m.timestamp, u.username as sender_name, m.from_user_id
@@ -168,9 +139,9 @@ class MessageModel
 		return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
+	// --- Récupérer l'historique complet des messages entre deux utilisateurs ---
 	function get_all_chat_data()
 	{
-		// MODIFICATION : Requête simplifiée sans récupérer les annotations pour affichage
 		$query = "SELECT a.username as from_username, b.username as to_username, 
 						 m.message_id, m.content, m.timestamp, m.to_user_id, m.from_user_id
 				  FROM Message m
@@ -188,9 +159,9 @@ class MessageModel
 		return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
+	// --- Enregistrer un nouveau message ---
 	function save_chat()
 	{
-		// SELON STRUCTURE DU PROF : Pas de conversation_id auto, pas de sender_emotion
 		$query = "INSERT INTO Message (to_user_id, from_user_id, content, timestamp) 
 				  VALUES (:to_user_id, :from_user_id, :content, :timestamp)";
 
@@ -201,14 +172,13 @@ class MessageModel
 		$stmt->bindParam(':timestamp', $this->timestamp);
 
 		if ($stmt->execute()) {
-			// Récupérer l'ID du message inséré
-			$this->message_id = $this->connect->lastInsertId();
+			$this->message_id = $this->connect->lastInsertId(); // Récupère l’ID du message inséré
 			return true;
 		}
 		return false;
 	}
 
-	// Sauvegarder l'annotation de l'expéditeur avec son message
+	// --- Enregistrer l'annotation de l'expéditeur en même temps que son message ---
 	function save_sender_annotation()
 	{
 		$query = "INSERT INTO Annotation (message_id, annotator_id, emotion, created_at)
@@ -223,7 +193,7 @@ class MessageModel
 		return $stmt->execute();
 	}
 
-	// Vérifier si un message a été annoté par un utilisateur spécifique
+	// --- Vérifie si un message est déjà annoté par un utilisateur donné ---
 	function is_message_annotated_by_user($message_id, $user_id)
 	{
 		$query = "SELECT COUNT(*) as count FROM Annotation 

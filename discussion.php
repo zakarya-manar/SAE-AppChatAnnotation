@@ -1,17 +1,24 @@
 <?php
+// Démarrage de la session
 session_start();
 
+// Redirection si l'utilisateur n'est pas connecté
 if (!isset($_SESSION['user_data'])) {
     header('location:index.php');
 }
 
+// Inclusion du modèle utilisateur
 require('database/UserModel.php');
 
+// Récupération du token utilisateur à partir de la session
 foreach ($_SESSION['user_data'] as $key => $value) {
     $token = $value['token'];
 }
 
+// Création d'une instance du modèle utilisateur
 $user_object = new UserModel;
+
+// Récupération de tous les utilisateurs depuis la base
 $user_data = $user_object->get_user_all_data();
 ?>
 
@@ -199,13 +206,6 @@ $(document).ready(function(){
                 $('#userstatus_' + data.user_id).html('<i class="offline"></i>'); 
             }
             else {
-                // Nouveau message reçu
-                var myNotificationAudioPath = data.from == 'Me' 
-                    ? 'vendor-front/sounds/mixkit-clear-announce-tones-2861.wav'
-                    : 'vendor-front/sounds/mixkit-arabian-mystery-harp-notification-2489.wav';
-
-                let myAudio = new Audio(myNotificationAudioPath);
-                //myAudio.play(); 
             
                 if (receiver_userid == data.userId || data.from == 'Me') {
                     if ($('#is_active_chat').val() == 'Yes') {
@@ -300,7 +300,6 @@ $(document).ready(function(){
         if (messageElement.find('.annotation-buttons').length === 0) {
             const annotationButtons = `
             <div class="annotation-buttons">
-                <p style="font-size: 12px; margin: 5px 0; font-weight: bold;">Comment avez-vous ressenti ce message ?</p>
                 <button class="emotion-btn" onclick="annotateMessage('${messageId}', 'joie')">😄 Joie</button>
                 <button class="emotion-btn" onclick="annotateMessage('${messageId}', 'colère')">😡 Colère</button>
                 <button class="emotion-btn" onclick="annotateMessage('${messageId}', 'tristesse')">😢 Tristesse</button>
@@ -375,7 +374,6 @@ $(document).ready(function(){
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             <b style="font-size: 16px;">Discussion avec : <span style="color: #dc3545;">${username}</span></b>
-                            <br><small style="color: #666;">Jeu de rôle : Chacun son tour !</small>
                         </div>
                         <div>
                             <button type="button" id="close_chat_area" style="font-size: 1.5rem; color: #999; cursor: pointer; background: none; border: none;">
@@ -391,7 +389,7 @@ $(document).ready(function(){
 
             <form id="chat_form" method="POST" style="display: flex; align-items: center; margin-top: 10px;">
                 <select id="emotion" name="annotation" style="border-radius: 20px; padding: 10px; font-size: 14px; margin-right: 10px; height: 50px;" required>
-                    <option value="" disabled selected>Votre annotation</option>
+                    <option value="" disabled selected>Annotation</option>
                     <option value="joie">😄 Joie</option>
                     <option value="colère">😡 Colère</option>
                     <option value="dégoût">🤮 Dégoût</option>
@@ -404,9 +402,6 @@ $(document).ready(function(){
                     ➤
                 </button>
             </form>
-            <div style="text-align: center; margin-top: 5px;">
-                <small style="color: #666;">Instructions : Choisissez votre annotation → Écrivez votre message → Envoyez</small>
-            </div>
         `;
 
         $('#chat_area').html(html); 

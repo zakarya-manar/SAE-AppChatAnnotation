@@ -2,6 +2,7 @@
 
 class UserModel
 {
+	// Attributs correspondant aux colonnes de la table User
 	private $user_id;
 	private $username;
 	private $email;
@@ -10,92 +11,55 @@ class UserModel
 	private $is_online;
 	private $user_token;
 	private $user_connection_id;
-	public $connect;
+
+	public $connect; // Objet de connexion PDO
 
 	public function __construct()
 	{
+		// Connexion à la base via Database_connection
 		require_once('Database_connection.php');
 		$database_object = new Database_connection;
 		$this->connect = $database_object->connect();
 	}
 
-	// Getters et setters
-	function setUserId($user_id) { 
-		$this->user_id = $user_id; 
-	}
+	// --- GETTERS ET SETTERS CLASSIQUES POUR CHAQUE ATTRIBUT ---
 
-	function getUserId() { 
-		return $this->user_id; 
-	}
+	function setUserId($user_id) { $this->user_id = $user_id; }
+	function getUserId() { return $this->user_id; }
 
-	function setUsername($username) { 
-		$this->username = $username; 
-	}
+	function setUsername($username) { $this->username = $username; }
+	function getUsername() { return $this->username; }
 
-	function getUsername() { 
-		return $this->username; 
-	}
+	function setEmail($email) { $this->email = $email; }
+	function getEmail() { return $this->email; }
 
-	function setEmail($email) { 
-		$this->email = $email; 
-	}
+	function setPasswordHash($password_hash) { $this->password_hash = $password_hash; }
+	function getPasswordHash() { return $this->password_hash; }
 
-	function getEmail() { 
-		return $this->email; 
-	}
+	function setCreatedAt($created_at) { $this->created_at = $created_at; }
+	function getCreatedAt() { return $this->created_at; }
 
-	function setPasswordHash($password_hash) { 
-		$this->password_hash = $password_hash; 
-	}
+	function setIsOnline($is_online) { $this->is_online = $is_online; }
+	function getIsOnline() { return $this->is_online; }
 
-	function getPasswordHash() { 
-		return $this->password_hash; 
-	}
+	function setUserToken($user_token) { $this->user_token = $user_token; }
+	function getUserToken() { return $this->user_token; }
 
-	function setCreatedAt($created_at) { 
-		$this->created_at = $created_at; 
-	}
+	function setUserConnectionId($user_connection_id) { $this->user_connection_id = $user_connection_id; }
+	function getUserConnectionId() { return $this->user_connection_id; }
 
-	function getCreatedAt() { 
-		return $this->created_at; 
-	}
+	// --- GESTION SÉCURISÉE DES MOTS DE PASSE ---
 
-	function setIsOnline($is_online) { 
-		$this->is_online = $is_online; 
-	}
-
-	function getIsOnline() { 
-		return $this->is_online; 
-	}
-
-	function setUserToken($user_token) { 
-		$this->user_token = $user_token; 
-	}
-
-	function getUserToken() { 
-		return $this->user_token; 
-	}
-
-	function setUserConnectionId($user_connection_id) { 
-		$this->user_connection_id = $user_connection_id; 
-	}
-
-	function getUserConnectionId() { 
-		return $this->user_connection_id; 
-	}
-
-	// NOUVELLES MÉTHODES SÉCURISÉES POUR LES MOTS DE PASSE
-	function hashPassword($plain_password) 
-	{
+	function hashPassword($plain_password) {
 		return password_hash($plain_password, PASSWORD_DEFAULT);
 	}
 
-	function verifyPassword($plain_password, $hashed_password) 
-	{
+	function verifyPassword($plain_password, $hashed_password) {
 		return password_verify($plain_password, $hashed_password);
 	}
 
-	// MODIFICATION : Vérifier si le nom d'utilisateur est unique
+	// --- CONTRÔLE D'UNICITÉ POUR LE NOM D'UTILISATEUR ---
+
 	function username_exists($username)
 	{
 		$query = "SELECT COUNT(*) as count FROM User WHERE username = :username";
@@ -106,7 +70,8 @@ class UserModel
 		return $result['count'] > 0;
 	}
 
-	// MÉTHODE POUR VÉRIFIER SI L'EMAIL EXISTE DÉJÀ
+	// --- CONTRÔLE D'UNICITÉ POUR L'EMAIL ---
+
 	function email_exists()
 	{
 		$query = "SELECT COUNT(*) as count FROM User WHERE email = :email";
@@ -116,6 +81,8 @@ class UserModel
 		$result = $stmt->fetch(PDO::FETCH_ASSOC);
 		return $result['count'] > 0;
 	}
+
+	// --- RÉCUPÉRATION DES DONNÉES UTILISATEUR PAR EMAIL ---
 
 	function get_user_data_by_email()
 	{
@@ -130,9 +97,11 @@ class UserModel
 		return false;
 	}
 
+	// --- CRÉATION D'UN NOUVEL UTILISATEUR ---
+
 	function save_data()
 	{
-		// MODIFICATION : Vérifier l'unicité du nom d'utilisateur ET de l'email
+		// Vérification unicité
 		if ($this->username_exists($this->username)) {
 			return ['success' => false, 'message' => 'Ce nom d\'utilisateur est déjà pris. Veuillez en choisir un autre.'];
 		}
@@ -141,15 +110,13 @@ class UserModel
 			return ['success' => false, 'message' => 'Cette adresse email est déjà utilisée.'];
 		}
 
-		// QUERY CORRIGÉE - sans spécifier user_id (AUTO_INCREMENT)
 		$query = "INSERT INTO User (username, email, password_hash, created_at, is_online) 
 				  VALUES (:username, :email, :password_hash, :created_at, :is_online)";
 		
 		$stmt = $this->connect->prepare($query);
-		
-		// Hacher le mot de passe avant de l'enregistrer
+
 		$hashed_password = $this->hashPassword($this->password_hash);
-		$is_online = false; // Par défaut, l'utilisateur n'est pas en ligne
+		$is_online = false;
 		
 		$stmt->bindParam(':username', $this->username);
 		$stmt->bindParam(':email', $this->email);
@@ -168,6 +135,8 @@ class UserModel
 		}
 	}
 
+	// --- MET À JOUR LE STATUT EN LIGNE + TOKEN UTILISATEUR ---
+
 	function update_user_login_data()
 	{
 		$query = "UPDATE User 
@@ -181,6 +150,8 @@ class UserModel
 
 		return $stmt->execute();
 	}
+
+	// --- RÉCUPÈRE LES INFOS D'UN UTILISATEUR PAR ID ---
 
 	function get_user_data_by_id()
 	{
@@ -201,7 +172,8 @@ class UserModel
 		}
 	}
 
-	// MODIFICATION : Méthode pour changer seulement le mot de passe
+	// --- MET À JOUR LE MOT DE PASSE UNIQUEMENT ---
+
 	function update_password()
 	{
 		$query = "UPDATE User 
@@ -209,17 +181,15 @@ class UserModel
 				  WHERE user_id = :user_id";
 
 		$stmt = $this->connect->prepare($query);
-		
-		// Hacher le nouveau mot de passe
 		$hashed_password = $this->hashPassword($this->password_hash);
-		
 		$stmt->bindParam(':password_hash', $hashed_password);
 		$stmt->bindParam(':user_id', $this->user_id);
 
 		return $stmt->execute();
 	}
 
-	// MODIFICATION : Méthode pour changer seulement le nom d'utilisateur
+	// --- MET À JOUR LE NOM D'UTILISATEUR UNIQUEMENT ---
+
 	function update_username()
 	{
 		$query = "UPDATE User 
@@ -233,6 +203,8 @@ class UserModel
 		return $stmt->execute();
 	}
 
+	// --- MET À JOUR TOUTES LES DONNÉES : nom, email, mot de passe ---
+
 	function update_data()
 	{
 		$query = "UPDATE User 
@@ -240,8 +212,6 @@ class UserModel
 				  WHERE user_id = :user_id";
 
 		$stmt = $this->connect->prepare($query);
-		
-		// Hacher le nouveau mot de passe s'il est fourni
 		$hashed_password = $this->hashPassword($this->password_hash);
 		
 		$stmt->bindParam(':username', $this->username);
@@ -252,6 +222,8 @@ class UserModel
 		return $stmt->execute();
 	}
 
+	// --- RÉCUPÈRE TOUS LES UTILISATEURS POUR AFFICHAGE LISTE ---
+
 	function get_user_all_data()
 	{
 		$query = "SELECT * FROM User ORDER BY is_online DESC";
@@ -259,6 +231,8 @@ class UserModel
 		$stmt->execute();
 		return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
+
+	// --- MET À JOUR L’ID DE CONNEXION SOCKET SELON LE TOKEN ---
 
 	function update_user_connection_id()
 	{
@@ -271,6 +245,8 @@ class UserModel
 		$stmt->bindParam(':user_token', $this->user_token);
 		$stmt->execute();
 	}
+
+	// --- RETOURNE L’ID UTILISATEUR À PARTIR D’UN TOKEN ---
 
 	function get_user_id_from_token()
 	{

@@ -12,7 +12,6 @@ CREATE TABLE `User` (
     `user_connection_id` INT DEFAULT NULL
 );
 
--- Table Message (sans emotion du sender)
 CREATE TABLE `Message` (
     `message_id` INT PRIMARY KEY AUTO_INCREMENT,
     `to_user_id` INT NOT NULL,
@@ -23,7 +22,6 @@ CREATE TABLE `Message` (
     FOREIGN KEY (`from_user_id`) REFERENCES User(`user_id`) ON DELETE CASCADE
 );
 
--- Table Annotation (pour stocker les annotations)
 CREATE TABLE `Annotation` (
     `annotation_id` INT PRIMARY KEY AUTO_INCREMENT,
     `message_id` INT NOT NULL,

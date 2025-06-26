@@ -4,6 +4,8 @@
 namespace MyApp;
 use Ratchet\MessageComponentInterface;
 use Ratchet\ConnectionInterface;
+
+// Inclusion des modèles pour gestion des utilisateurs et des messages
 require dirname(__DIR__) . "/database/UserModel.php";
 require dirname(__DIR__) . "/database/MessageModel.php";
 
@@ -11,18 +13,21 @@ class Chat implements MessageComponentInterface {
     protected $clients;
 
     public function __construct() {
+        // Initialisation de la liste des clients connectés
         $this->clients = new \SplObjectStorage;
         echo 'Server Started - Annotation System According to Professor Requirements';
     }
 
     public function onOpen(ConnectionInterface $conn) {
+        // Lorsqu'un utilisateur se connecte, on l'ajoute à la liste
         $this->clients->attach($conn);
 
-        // Gestion du statut en ligne
+        // Récupération du token dans la query string pour authentification
         $querystring = $conn->httpRequest->getUri()->getQuery();
         parse_str($querystring, $queryarray);
 
         if (isset($queryarray['token'])) {
+            // Mise à jour du statut et de l'ID de connexion utilisateur
             $user_object = new \UserModel;
             $user_object->setUserToken($queryarray['token']);
             $user_object->setUserConnectionId($conn->resourceId);
@@ -30,6 +35,7 @@ class Chat implements MessageComponentInterface {
             $user_data = $user_object->get_user_id_from_token();
             $user_id = $user_data['user_id'];
 
+            // Préparation des données de statut à diffuser aux autres clients
             $data['user_id'] = $user_id;
             $data['status_type'] = 'Online';
 
@@ -43,13 +49,13 @@ class Chat implements MessageComponentInterface {
     public function onMessage(ConnectionInterface $from, $msg) {
         $data = json_decode($msg, true);
         
-        // Vérifier si c'est une requête d'annotation
+        // Si action = annotation d'un message reçu
         if (isset($data['action']) && $data['action'] === 'annotate_message') {
             $this->handleAnnotation($from, $data);
             return;
         }
 
-        // Vérifier si c'est un message normal avec annotation
+        // Si envoi d’un nouveau message annoté par l’expéditeur
         if (isset($data['userId']) && isset($data['receiver_userid']) && isset($data['msg']) && isset($data['emotion'])) {
             $this->handleMessageWithAnnotation($from, $data);
             return;
@@ -62,11 +68,11 @@ class Chat implements MessageComponentInterface {
         $message_object->setToUserId($data['receiver_userid']);
         $message_object->setFromUserId($data['userId']);
         
-        // VÉRIFICATION SELON CONSIGNES : Peut-on envoyer ?
+        // Vérifie si l'utilisateur a annoté tous les messages reçus
         $can_send_result = $message_object->can_user_send_message();
         
         if (!$can_send_result['can_send']) {
-            // Bloquer l'envoi
+            // Envoi refusé : renvoyer l’erreur et message à annoter
             $error_data = [
                 'error' => 'annotation_required',
                 'reason' => $can_send_result['reason'],
@@ -77,46 +83,42 @@ class Chat implements MessageComponentInterface {
             return;
         }
 
-        // SELON CONSIGNES : L'utilisateur peut envoyer
+        // Si validation réussie, préparer l'envoi
         $message_object->setChatMessage($data['msg']);
         $message_object->setEmotion($data['emotion']);
         $timestamp = date('Y-m-d H:i:s');
         $message_object->setTimestamp($timestamp);
 
-        // 1. Sauvegarder le message
+        // Sauvegarde du message dans la base de données
         if ($message_object->save_chat()) {
-            
-            // 2. Sauvegarder l'annotation de l'expéditeur
+            // Sauvegarde de l’annotation de l’émetteur
             $message_object->save_sender_annotation();
 
             $user_object = new \UserModel;
 
-            // Obtenir les données de l'expéditeur
+            // Récupération des données de l’émetteur
             $user_object->setUserId($data['userId']);
             $sender_user_data = $user_object->get_user_data_by_id();
             $sender_username = $sender_user_data['username'];
 
-            // Obtenir les données du destinataire
+            // Récupération des données du destinataire
             $user_object->setUserId($data['receiver_userid']);
             $receiver_user_data = $user_object->get_user_data_by_id();
             $receiver_user_connection_id = $receiver_user_data['user_connection_id'];
 
+            // Préparer les données à envoyer
             $response_data = [
                 'userId' => $data['userId'],
                 'receiver_userid' => $data['receiver_userid'],
                 'msg' => $data['msg'],
-                'emotion' => $data['emotion'], // Annotation de l'expéditeur
+                'emotion' => $data['emotion'],
                 'datetime' => $timestamp,
                 'message_id' => $message_object->getMessageId()
             ];
 
-            // Envoyer le message aux participants
+            // Envoi aux deux utilisateurs impliqués (émetteur + récepteur)
             foreach ($this->clients as $client) {
-                if ($from == $client) {
-                    $response_data['from'] = 'Me';
-                } else {
-                    $response_data['from'] = $sender_username;
-                }
+                $response_data['from'] = ($from == $client) ? 'Me' : $sender_username;
 
                 if ($client->resourceId == $receiver_user_connection_id || $from == $client) {
                     $client->send(json_encode($response_data));
@@ -132,31 +134,29 @@ class Chat implements MessageComponentInterface {
         $timestamp = date('Y-m-d H:i:s');
         $message_object->setTimestamp($timestamp);
         
-        // Annoter le message reçu
+        // Appelle la fonction pour annoter un message reçu
         $result = $message_object->annotate_received_message($data['message_id'], $data['emotion']);
         
         if ($result['success']) {
-            // Informer le client que l'annotation a réussi
+            // Retourner un message de succès
             $response_data = [
                 'action' => 'annotation_success',
                 'message' => $result['message'],
                 'message_id' => $data['message_id']
             ];
-            
             $from->send(json_encode($response_data));
-            
         } else {
-            // Informer le client de l'erreur
+            // Retourner un message d'erreur
             $error_data = [
                 'action' => 'annotation_error',
                 'message' => $result['message']
             ];
-            
             $from->send(json_encode($error_data));
         }
     }
 
     public function onClose(ConnectionInterface $conn) {
+        // Lorsqu’un utilisateur se déconnecte
         $querystring = $conn->httpRequest->getUri()->getQuery();
         parse_str($querystring, $queryarray);
 
@@ -166,6 +166,7 @@ class Chat implements MessageComponentInterface {
             $user_data = $user_object->get_user_id_from_token();
             $user_id = $user_data['user_id'];
 
+            // Informer les autres utilisateurs que celui-ci est hors ligne
             $data['user_id'] = $user_id;
             $data['status_type'] = 'Offline';
 
@@ -174,11 +175,13 @@ class Chat implements MessageComponentInterface {
             }
         }
 
+        // Retirer le client de la liste
         $this->clients->detach($conn);
         echo "Connection {$conn->resourceId} has disconnected\n";
     }
 
     public function onError(ConnectionInterface $conn, \Exception $e) {
+        // Gestion des erreurs WebSocket
         echo "An error has occurred: {$e->getMessage()}\n";
         $conn->close();
     }
